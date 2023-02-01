@@ -127,3 +127,14 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# text file
+*.csv
+
+# compressed file
+*.zip
+
+# raw dataset
+/OCR_data
+/OCR_Training_Font
+/model_output
