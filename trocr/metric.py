@@ -1,15 +1,15 @@
 
-def prf(pred, true, processor):
-    precision = 0.0
-    recall = 0.0
-    f1 = 0.0
-    for pred_ids, label_ids in zip(pred, true):
-        p, r, f = prf_metric(pred_ids, label_ids, processor)
-        precision += p
-        recall += r
-        f1 += f
-
-    return precision / len(pred) *100, recall / len(pred) *100, f1 / len(pred) *100
+# def prf(pred, true, processor):
+#     precision = 0.0
+#     recall = 0.0
+#     f1 = 0.0
+#     for pred_ids, label_ids in zip(pred, true):
+#         p, r, f = prf_metric(pred_ids, label_ids, processor)
+#         precision += p
+#         recall += r
+#         f1 += f
+#
+#     return precision / len(pred) *100, recall / len(pred) *100, f1 / len(pred) *100
 
 
 def prf_metric(pred_ids, label_ids, processor):
