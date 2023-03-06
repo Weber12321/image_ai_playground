@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 from transformers import AdamW, get_scheduler
 from tqdm import tqdm
 
-from config import DUMMY_DATA_PATH, MODEL_SAVE_PATH, MODEL_STATE_PATH, OCR_CATALOG, OCR_DATA_PATH
+from config import DUMMY_CATALOG, DUMMY_DATA_PATH, MODEL_SAVE_PATH, MODEL_STATE_PATH, OCR_CATALOG, OCR_DATA_PATH
 from trocr.data import ZhPrintedDataset
 from trocr.metric import prf_metric
 from trocr.model import initial_model, initial_processor
@@ -36,9 +36,10 @@ def run(
 ):
     if not catalog_path:
         catalog_path = OCR_CATALOG
+        # catalog_path = DUMMY_CATALOG
     if not data_path:
-        # data_path = OCR_DATA_PATH
-        data_path = DUMMY_DATA_PATH
+        data_path = OCR_DATA_PATH
+        # data_path = DUMMY_DATA_PATH
     if not model_state_dir:
         model_state_dir = MODEL_STATE_PATH
     if not model_save_dir:
@@ -94,11 +95,15 @@ def run(
 
     # set beam search parameters
     model.config.eos_token_id = processor.tokenizer.sep_token_id
-    model.config.max_length = 64
+    model.config.max_length = 15
     model.config.early_stopping = True
     model.config.no_repeat_ngram_size = 3
     model.config.length_penalty = 2.0
     model.config.num_beams = 4
+
+    traced_model = torch.jit.trace(model, dummy_input)
+    save_model_path_pt = os.path.join(model_save_dir, f"{task_}.bin")
+    torch.jit.save(traced_model, save_model_path_pt)
 
     if trace:
         wandb.config.update({
@@ -127,8 +132,7 @@ def run(
     click.echo('Start training...')
 
     save_model_path = os.path.join(model_state_dir, f"{task_}.bin")
-    precision, recall, f1 = 0.0, 0.0, 0.0
-    for epoch in range(int(epochs)):
+    for epoch in range(1, int(epochs) + 1):
         # train
         click.echo(f" ==== epoch {epoch} ==== ")
         model.train()
@@ -150,21 +154,23 @@ def run(
         click.echo(f" ==== Loss after epoch {epoch}: {train_loss / len(train_dataloader)} ==== ", )
 
         # evaluate
+        precision, recall, f1 = 0.0, 0.0, 0.0
         model.eval()
-
         with torch.no_grad():
             for batch in tqdm(test_dataloader):
                 # run batch generation
                 outputs = model.generate(batch["pixel_values"].to(device))
+                # click.echo(outputs)
                 # compute metrics
-                p, r, f = prf_metric(pred_ids=outputs, label_ids=batch["labels"], processor=processor)
+                p, r, f = prf_metric(pred_ids=outputs,
+                                     label_ids=batch["labels"],
+                                     processor=processor)
                 if f > f1:
+                    precision = p
+                    recall = r
+                    f1 = f
                     torch.save(model.state_dict(), save_model_path)
                     wandb.save(f"{task_}.bin")
-
-        precision /= len(test_dataloader)
-        recall /= len(test_dataloader)
-        f1 /= len(test_dataloader)
 
         click.echo(f" ==== Validation score: precision {precision}, recall {recall}, f1 {f1} ==== ")
 

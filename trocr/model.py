@@ -3,7 +3,6 @@ from transformers import (
     VisionEncoderDecoderModel,
 )
 
-
 def initial_model(model_ckpt=None):
     if model_ckpt:
         model = VisionEncoderDecoderModel.from_pretrained(model_ckpt)
