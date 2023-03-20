@@ -5,6 +5,7 @@ def prf_metric(pred_ids, label_ids, processor):
     # https://github.com/microsoft/unilm/blob/master/trocr/scoring.py
     pred_list, label_list = \
         get_decode_str(pred_ids, label_ids, processor)
+    
 
     precision = 0.0
     recall = 0.0
@@ -22,9 +23,19 @@ def prf_metric(pred_ids, label_ids, processor):
 
 
 def scoring(n_gt_words, n_detected_words, n_match_words):
-    precision = n_match_words / n_detected_words
-    recall = n_match_words / n_gt_words
-    f1 = 2 * (precision * recall) / (precision + recall)
+    if n_detected_words == 0:
+        precision = 0
+    else:        
+        precision = n_match_words / n_detected_words
+    if n_gt_words == 0:
+        recall = 0
+    else:
+        recall = n_match_words / n_gt_words
+
+    if precision == 0 and recall == 0:
+        f1 = 0
+    else:
+        f1 = 2 * (precision * recall) / (precision + recall)
     return precision, recall, f1
 
 

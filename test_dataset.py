@@ -12,13 +12,15 @@ def build_iter_dataset(root_dir, catalog, processor):
     return ZhPrintedIterDataset(root_dir, catalog, processor)
 
 
-if __name__ == '__main__':
-    root_dir = "C:/Users/weber/PycharmProjects/playground/OCR_data/"
 
-    df = read_dataset("C:/Users/weber/PycharmProjects/playground/catalog.csv")
+
+if __name__ == '__main__':
+    root_dir = "/root/algo_rd/image_ai_playground/vali_data/"
+
+    df = read_dataset("/root/algo_rd/image_ai_playground/vali_catalog.csv")
     processor = initial_processor("microsoft/trocr-small-printed")
 
-    map_dataset = build_map_dataset(root_dir, df, processor)
-    iter_dataset = build_iter_dataset(root_dir, df, processor)
+    map_dataset = ZhPrintedDataset(root_dir=root_dir, df=df, processor=processor, max_target_length=20)
+    print(map_dataset[0])
 
 

@@ -135,7 +135,13 @@ dmypy.json
 *.zip
 
 # raw dataset
-/OCR_data
+/data
 /dummy_data
 /OCR_Training_Font
 /model_output
+
+# tokenizer file
+new_vocabs/
+
+# wandb
+wandb/
