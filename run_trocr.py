@@ -6,20 +6,20 @@ import numpy as np
 import pandas as pd
 import torch
 import wandb
-from torch.utils.data import DataLoader, SubsetRandomSampler, Subset
+from torch.utils.data import DataLoader, SubsetRandomSampler
 
 from transformers import AdamW, get_scheduler
 from transformers import logging as hf_logging
 from tqdm import tqdm
 
-from config import DUMMY_CATALOG, DUMMY_DATA_PATH, MODEL_BIN_PATH, MODEL_SAVE_PATH, MODEL_STATE_PATH, OCR_CATALOG, OCR_DATA_PATH, VALI_CATALOG, VALI_DATA_PATH, PREP_DIR
+from config import MODEL_BIN_PATH, MODEL_STATE_PATH, OCR_CATALOG, \
+    OCR_DATA_PATH, VALI_CATALOG, VALI_DATA_PATH, PREP_DIR
 from trocr.data import ZhPrintedDataset
 from trocr.metric import prf_metric
 from trocr.model import initial_model, initial_processor
-from trocr.process import read_dataset, train_test_split_dataset
-from trocr.save import save_pt
 
 os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+
 
 @click.command()
 @click.option('--task_name', default='NaN')
@@ -31,43 +31,38 @@ os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 @click.option('--lr', default=0.0005)
 @click.option('--batch_size', default=16)
 @click.option('--model_state_dir', default=None)
-@click.option('--model_save_dir', default=None)
-@click.option('--num_training_steps', default=1000)
-@click.option('--load_state/--no_load_statae', default=True)
+@click.option('--num_training_steps_per_epoch', default=1000)
+@click.option('--num_validation_steps_per_epoch', default=100)
+@click.option('--load_state/--no_load_state', default=True)
+@click.option('--save_bin_with_loss/--save_bin_with_score', default=True)
 def run(
     task_name, trace, max_target_length, device,
-    model_ckpt, epochs, lr, batch_size, model_state_dir, model_save_dir, num_training_steps, load_state
+    model_ckpt, epochs, lr, batch_size, model_state_dir,
+    num_training_steps_per_epoch, num_validation_steps_per_epoch, load_state,
+    save_bin_with_loss
 ):
     hf_logging.set_verbosity_error()
 
     catalog_path = OCR_CATALOG
     vali_path = VALI_CATALOG
-        # catalog_path = DUMMY_CATALOG
     data_path = OCR_DATA_PATH
     vali_data_path = VALI_DATA_PATH
-        # data_path = DUMMY_DATA_PATH
     if not model_state_dir:
         model_state_dir = MODEL_STATE_PATH
-    if not model_save_dir:
-        model_save_dir = MODEL_SAVE_PATH
-
     if task_name == 'NaN':
         task_ = datetime.now().strftime('%Y-%m-%d-%H-%M')
     else:
         task_ = task_name
 
     if trace:
-        wandb.init(project="trocr", entity="weber12321")
+        wandb.init(project="trocr", entity="weber12321", name=task_)
 
     if load_state:
         bin_path = MODEL_BIN_PATH
 
     click.echo('Load data catalog and dataset...')
-    # df = read_dataset(catalog_path)
-    # train_df, test_df = train_test_split_dataset(df, test_size=0.1)
     train_df = pd.read_csv(catalog_path, encoding='utf-8')
     test_df = pd.read_csv(vali_path, encoding='utf-8')
-    
 
     click.echo('Init processor...')
     processor = initial_processor(model_ckpt=PREP_DIR, local=True)
@@ -84,10 +79,9 @@ def run(
         root_dir=vali_data_path,
         df=test_df,
         processor=processor,
-        max_target_length = int(max_target_length)
+        max_target_length=int(max_target_length)
     )
 
-    # dummy_input = train_dataset[0]['pixel_values']
 
     click.echo(f"Number of training examples: {len(train_dataset)}")
     # click.echo(f"Number of validation examples: {len(test_dataset)}")
@@ -104,9 +98,11 @@ def run(
     click.echo(f"Number of validation examples: {1000}")
     # train_subset = Subset(train_dataset, )
 
-    train_dataloader = DataLoader(train_dataset, batch_size=int(batch_size), shuffle=True)
+    train_dataloader = DataLoader(train_dataset, batch_size=int(batch_size),
+                                  shuffle=True)
     # train_dataloader = DataLoader(train_dataset, batch_size=int(batch_size), sampler=train_subset_sampler)
-    test_dataloader = DataLoader(test_dataset, batch_size=10, sampler=test_subset_sampler)
+    test_dataloader = DataLoader(test_dataset, batch_size=10,
+                                 sampler=test_subset_sampler)
 
     click.echo('Initializing model...')
     model = initial_model(model_ckpt=model_ckpt)
@@ -155,7 +151,9 @@ def run(
 
     optimizer = AdamW(model.parameters(), lr=float(lr))
     # num_training_steps = num_training_steps
-    click.echo(f"num_training_steps: {num_training_steps}")
+    click.echo(f"num_training_steps_per_epoch: {num_training_steps_per_epoch}")
+    click.echo(
+        f"num_validation_steps_per_epoch: {num_validation_steps_per_epoch}")
     # num_training_steps = int(num_training_steps)
     lr_scheduler = get_scheduler(
         name="linear",
@@ -172,6 +170,8 @@ def run(
     click.echo('Start training...')
 
     save_model_path = os.path.join(model_state_dir, f"{task_}")
+    os.mkdir(save_model_path)
+
     train_iterator_ = next_(train_dataloader)
     test_iterator_ = next_(test_dataloader)
     for epoch in range(1, int(epochs) + 1):
@@ -179,15 +179,12 @@ def run(
         click.echo(f" ==== epoch {epoch} ==== ")
         model.train()
         train_loss = 0.0
-        
-        for idx in tqdm(range(num_training_steps)):
-            # click.echo(f" ---- step {(idx + 1) * epoch} ---- ")
+
+        for _ in tqdm(range(num_training_steps_per_epoch)):
             batch = next(train_iterator_)
-            # get the inputs
             for k, v in batch.items():
                 batch[k] = v.to(device)
 
-            # forward + backward + optimize
             outputs = model(**batch)
             loss = outputs.loss
             loss.backward()
@@ -196,15 +193,18 @@ def run(
             optimizer.zero_grad()
             train_loss += loss.item()
 
-        click.echo(f" ==== Loss of epoch {epoch}: {train_loss / len(train_dataloader)} ==== ")
+        click.echo(
+            f" ==== Loss of epoch {epoch}: {train_loss / num_training_steps_per_epoch} ==== "
+        )
 
         # torch.save(model.state_dict(), save_model_path)
         # evaluate
         precision, recall, f1 = 0.0, 0.0, 0.0
         model.eval()
         vali_loss = 0.0
+        temp_loss = 0.0
         with torch.no_grad():
-            for idx in tqdm(range(100)):
+            for idx in tqdm(range(num_validation_steps_per_epoch)):
                 batch = next(test_iterator_)
                 # run batch generation
                 for k, v in batch.items():
@@ -214,8 +214,7 @@ def run(
                 vali_loss += loss.item()
 
                 outputs = model.generate(batch["pixel_values"].to(device))
-                # click.echo(outputs)
-                # compute metrics
+
                 p, r, f = prf_metric(pred_ids=outputs,
                                      label_ids=batch["labels"],
                                      processor=processor)
@@ -223,26 +222,37 @@ def run(
                     precision = p
                     recall = r
                     f1 = f
-                if loss.item() <= (vali_loss / (idx + 1)):
-                    torch.save(model.state_dict(), save_model_path + f"_{epoch}_val_loss_{loss.item()}_.bin")
-                    # if trace:
-                    #     wandb.save(f"{task_}.bin")
+                    if not save_bin_with_loss:
+                        torch.save(
+                            model.state_dict(),
+                            save_model_path + f"_ep_{epoch}_f1_{round(f1, 4)}.bin"
+                        )
 
-        click.echo(f" ==== Loss of epoch {epoch}: {vali_loss / len(test_dataloader)} ==== ")
-        click.echo(f" ==== Validation score: precision {precision}, recall {recall}, f1 {f1} ==== ")
+                if save_bin_with_loss:
+                    if idx == 0:
+                        temp_loss = loss.item()
+
+                    if loss.item() <= temp_loss:
+                        temp_loss = loss.item()
+                        torch.save(
+                            model.state_dict(),
+                            save_model_path + f"_ep_{epoch}_val_loss_{round(loss.item(), 4)}.bin"
+                        )
+
+        click.echo(
+            f" ==== Loss of epoch {epoch}: {vali_loss / num_validation_steps_per_epoch} ==== ")
+        click.echo(
+            f" ==== Validation score: precision {precision}, recall {recall}, f1 {f1} ==== ")
 
         if trace:
             wandb.log({
                 "epoch": epoch,
-                "train_loss": train_loss / len(train_dataloader),
-                "vali_loss": vali_loss / len(test_dataloader),
+                "train_loss": train_loss / num_training_steps_per_epoch,
+                "vali_loss": vali_loss / num_validation_steps_per_epoch,
                 "precision": precision,
                 "recall": recall,
                 "f1": f1
             })
-
-    # save_model_path_pt = os.path.join(model_save_dir, f"{task_}.bin")
-    # save_pt(model, dummy_input, save_model_path, save_model_path_pt)
 
 
 if __name__ == '__main__':
