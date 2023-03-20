@@ -3,9 +3,9 @@
 PREP_DIR = '/root/algo_rd/image_ai_playground/new_vocabs'
 
 # Full Zh dataset catalog.
-OCR_CATALOG = '/root/algo_rd/image_ai_playground/catalog_mingliu_12_sample_16.csv'
+OCR_CATALOG = '/root/algo_rd/image_ai_playground/catalog_mingliu_12_sample_320.csv'
 
-VALI_CATALOG = '/root/algo_rd/image_ai_playground/catalog_mingliu_12_sample_16.csv'
+VALI_CATALOG = '/root/algo_rd/image_ai_playground/catalog_mingliu_12_sample_320.csv'
 
 # For small dataset catalog.
 # DUMMY_CATALOG = '/root/algo_rd/image_ai_playground/catalog_kaiu_36.csv'
