@@ -55,7 +55,7 @@ def run(
         task_ = task_name
 
     if trace:
-        wandb.init(project="trocr", entity="weber12321", name=task_)
+        wandb.init(project="trocr_tiny_expr", entity="weber12321", name=task_)
 
     if load_state:
         bin_path = MODEL_BIN_PATH

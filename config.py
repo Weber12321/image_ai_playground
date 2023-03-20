@@ -8,7 +8,7 @@ OCR_CATALOG = '/root/algo_rd/image_ai_playground/catalog_all.csv'
 VALI_CATALOG = '/root/algo_rd/image_ai_playground/catalog_all.csv'
 
 # For small dataset catalog.
-DUMMY_CATALOG = '/root/algo_rd/image_ai_playground/catalog_kaiu_36.csv'
+# DUMMY_CATALOG = '/root/algo_rd/image_ai_playground/catalog_kaiu_36.csv'
 
 # Full Zh dataset.
 OCR_DATA_PATH = '/root/algo_rd/image_ai_playground/data/'
