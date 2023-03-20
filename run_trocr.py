@@ -197,7 +197,6 @@ def run(
             f" ==== Loss of epoch {epoch}: {train_loss / num_training_steps_per_epoch} ==== "
         )
 
-        # torch.save(model.state_dict(), save_model_path)
         # evaluate
         precision, recall, f1 = 0.0, 0.0, 0.0
         model.eval()
@@ -221,23 +220,30 @@ def run(
                 if f > f1:
                     precision = p
                     recall = r
-                    f1 = f
                     if not save_bin_with_loss:
+
                         torch.save(
                             model.state_dict(),
-                            save_model_path + f"_ep_{epoch}_f1_{round(f1, 4)}.bin"
+                            save_model_path + f"_f1_{round(f, 4)}.bin"
                         )
+                        os.remove(
+                            save_model_path + f"_f1_{round(f1, 4)}.bin"
+                        )
+                    f1 = f
 
                 if save_bin_with_loss:
                     if idx == 0:
                         temp_loss = loss.item()
 
                     if loss.item() <= temp_loss:
-                        temp_loss = loss.item()
                         torch.save(
                             model.state_dict(),
-                            save_model_path + f"_ep_{epoch}_val_loss_{round(loss.item(), 4)}.bin"
+                            save_model_path + f"_val_loss_{round(loss.item(), 4)}.bin"
                         )
+                        os.remove(
+                            save_model_path + f"_val_loss_{round(temp_loss, 4)}.bin"
+                        )
+                        temp_loss = loss.item()
 
         click.echo(
             f" ==== Loss of epoch {epoch}: {vali_loss / num_validation_steps_per_epoch} ==== ")
