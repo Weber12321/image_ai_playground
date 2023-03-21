@@ -28,11 +28,11 @@ os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 @click.option('--device', default="cuda")
 @click.option('--model_ckpt', default="microsoft/trocr-small-printed")
 @click.option('--epochs', default=1000)
-@click.option('--lr', default=0.0005)
+@click.option('--lr', default=0.000001)
 @click.option('--batch_size', default=16)
 @click.option('--model_state_dir', default=None)
-@click.option('--num_training_steps_per_epoch', default=1000)
-@click.option('--num_validation_steps_per_epoch', default=100)
+@click.option('--num_training_steps_per_epoch', default=20)
+@click.option('--num_validation_steps_per_epoch', default=10)
 @click.option('--load_state/--no_load_state', default=True)
 @click.option('--save_bin_with_loss/--save_bin_with_score', default=True)
 def run(
@@ -86,23 +86,23 @@ def run(
     click.echo(f"Number of training examples: {len(train_dataset)}")
     # click.echo(f"Number of validation examples: {len(test_dataset)}")
 
-    torch.manual_seed(42)
+    # torch.manual_seed(42)
 
     # set subset sampler
     # train_subset_sampler = SubsetRandomSampler(
     #     np.random.choice(len(train_dataset), 16000, replace=False)
     # )
-    test_subset_sampler = SubsetRandomSampler(
-        np.random.choice(len(test_dataset), 1000, replace=False)
-    )
-    click.echo(f"Number of validation examples: {1000}")
+    # test_subset_sampler = SubsetRandomSampler(
+    #     np.random.choice(len(test_dataset), 1000, replace=False)
+    # )
+    click.echo(f"Number of validation examples: {len(test_dataset)}")
     # train_subset = Subset(train_dataset, )
 
-    train_dataloader = DataLoader(train_dataset, batch_size=int(batch_size),
+    train_dataloader = DataLoader(train_dataset, batch_size=int(batch_size), num_workers=6,
                                   shuffle=True)
     # train_dataloader = DataLoader(train_dataset, batch_size=int(batch_size), sampler=train_subset_sampler)
-    test_dataloader = DataLoader(test_dataset, batch_size=10,
-                                 sampler=test_subset_sampler)
+    test_dataloader = DataLoader(test_dataset, batch_size=int(batch_size), num_workers=6,
+                                 shuffle=True)
 
     click.echo('Initializing model...')
     model = initial_model(model_ckpt=model_ckpt)
@@ -170,7 +170,7 @@ def run(
     click.echo('Start training...')
 
     save_model_path = os.path.join(model_state_dir, f"{task_}")
-    os.mkdir(save_model_path)
+    os.makedirs(save_model_path, exist_ok=True)
 
     train_iterator_ = next_(train_dataloader)
     test_iterator_ = next_(test_dataloader)
@@ -197,6 +197,7 @@ def run(
             f" ==== Loss of epoch {epoch}: {train_loss / num_training_steps_per_epoch} ==== "
         )
 
+        # torch.save(model.state_dict(), save_model_path)
         # evaluate
         precision, recall, f1 = 0.0, 0.0, 0.0
         model.eval()
@@ -220,8 +221,8 @@ def run(
                 if f > f1:
                     precision = p
                     recall = r
+                    
                     if not save_bin_with_loss:
-
                         torch.save(
                             model.state_dict(),
                             save_model_path + f"_f1_{round(f, 4)}.bin"
@@ -236,13 +237,16 @@ def run(
                         temp_loss = loss.item()
 
                     if loss.item() <= temp_loss:
+                        
                         torch.save(
                             model.state_dict(),
                             save_model_path + f"_val_loss_{round(loss.item(), 4)}.bin"
                         )
-                        os.remove(
-                            save_model_path + f"_val_loss_{round(temp_loss, 4)}.bin"
-                        )
+                        if idx != 0:
+                            os.remove(
+                                save_model_path + f"_val_loss_{round(temp_loss, 4)}.bin"  
+                            )
+
                         temp_loss = loss.item()
 
         click.echo(
